@@ -6,6 +6,11 @@
 #include "GameFramework/Character.h"
 #include "FlySwatterCharacter.generated.h"
 
+class AFood;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FScoreUpdate, int, NewScore);
+
+
 UCLASS(Blueprintable)
 class AFlySwatterCharacter : public ACharacter
 {
@@ -16,19 +21,21 @@ public:
 
 	// Called every frame.
 	virtual void Tick(float DeltaSeconds) override;
+	void PickupFood(AFood* Food);
+	void DepositFood();
 
-	/** Returns TopDownCameraComponent subobject **/
-	FORCEINLINE class UCameraComponent* GetTopDownCameraComponent() const { return TopDownCameraComponent; }
-	/** Returns CameraBoom subobject **/
-	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
+	UPROPERTY(BlueprintAssignable)
+	FScoreUpdate OnScoreUpdated;
 
-private:
-	/** Top down camera */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	class UCameraComponent* TopDownCameraComponent;
+protected:
+	UPROPERTY()
+	int MaxFood;
+	UPROPERTY()
+	int CurrentCarriedFood;
 
-	/** Camera boom positioning the camera above the character */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	class USpringArmComponent* CameraBoom;
+	UPROPERTY()
+	TArray<TObjectPtr<AFood>> CarriedFood;
+
+	UPROPERTY()
+	int Score;
 };
-

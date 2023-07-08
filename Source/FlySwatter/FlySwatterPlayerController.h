@@ -30,10 +30,13 @@ public:
 	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	class UInputMappingContext* DefaultMappingContext;
-	
+
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
 	class UInputAction* SetDestinationClickAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
+	class UInputAction* DashInputAction;
 
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess = "true"))
@@ -44,22 +47,37 @@ protected:
 	uint32 bMoveToMouseCursor : 1;
 
 	virtual void SetupInputComponent() override;
-	
+
 	// To add mapping context
 	virtual void BeginPlay();
 
 	/** Input handlers for SetDestination action. */
 	void OnInputStarted();
 	void OnSetDestinationTriggered();
+	void Dash();
 	void OnSetDestinationReleased();
+	void RechargeDashCharges();
 	void OnTouchTriggered();
 	void OnTouchReleased();
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void StartDash(FVector DashLoc);
+
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Dash")
+	int MaxDashCharges;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Dash")
+	int CurrentDashCharges;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Dash")
+	float DashCooldown;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Dash")
+	FTimerHandle DashRechargeHandle;
 
 private:
 	FVector CachedDestination;
 
+
 	bool bIsTouch; // Is it a touch device
 	float FollowTime; // For how long it has been pressed
 };
-
-

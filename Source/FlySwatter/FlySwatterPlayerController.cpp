@@ -9,6 +9,8 @@
 #include "Engine/World.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "FlyLogging.h"
+#include "Kismet/GameplayStatics.h"
 
 AFlySwatterPlayerController::AFlySwatterPlayerController()
 {
@@ -25,9 +27,11 @@ void AFlySwatterPlayerController::BeginPlay()
 
 	//Add Input Mapping Context
 	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
-	{
 		Subsystem->AddMappingContext(DefaultMappingContext, 0);
-	}
+
+	MaxDashCharges = 1;
+	CurrentDashCharges = MaxDashCharges;
+	DashCooldown = 1.0f;
 }
 
 void AFlySwatterPlayerController::SetupInputComponent()
@@ -49,6 +53,9 @@ void AFlySwatterPlayerController::SetupInputComponent()
 		EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Triggered, this, &AFlySwatterPlayerController::OnTouchTriggered);
 		EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Completed, this, &AFlySwatterPlayerController::OnTouchReleased);
 		EnhancedInputComponent->BindAction(SetDestinationTouchAction, ETriggerEvent::Canceled, this, &AFlySwatterPlayerController::OnTouchReleased);
+
+
+		EnhancedInputComponent->BindAction(DashInputAction, ETriggerEvent::Started, this, &AFlySwatterPlayerController::Dash);
 	}
 }
 
@@ -62,7 +69,7 @@ void AFlySwatterPlayerController::OnSetDestinationTriggered()
 {
 	// We flag that the input is being pressed
 	FollowTime += GetWorld()->GetDeltaSeconds();
-	
+
 	// We look for the location in the world where the player has pressed the input
 	FHitResult Hit;
 	bool bHitSuccessful = false;
@@ -80,7 +87,7 @@ void AFlySwatterPlayerController::OnSetDestinationTriggered()
 	{
 		CachedDestination = Hit.Location;
 	}
-	
+
 	// Move towards mouse pointer or touch
 	APawn* ControlledPawn = GetPawn();
 	if (ControlledPawn != nullptr)
@@ -89,6 +96,43 @@ void AFlySwatterPlayerController::OnSetDestinationTriggered()
 		ControlledPawn->AddMovementInput(WorldDirection, 1.0, false);
 	}
 }
+
+void AFlySwatterPlayerController::Dash()
+{
+	if (CurrentDashCharges == 0)return;
+
+	PRINT_MESSAGE(FColor::Orange, "Dashing | Dash Amount %d", CurrentDashCharges);
+
+	if (GetWorldTimerManager().IsTimerActive(DashRechargeHandle))
+		GetWorldTimerManager().ClearTimer(DashRechargeHandle);
+
+	FVector PawnLocation = GetPawn()->GetActorLocation();
+	FVector2D MousePosition;
+	FVector MouseLocation, MouseDirection;
+
+	this->GetMousePosition(MousePosition.X, MousePosition.Y);
+	this->DeprojectMousePositionToWorld(MouseLocation, MouseDirection);
+
+	FVector PlaneNormal(0.f, 0.f, 1.f);
+
+	FVector EndLocation = FMath::LinePlaneIntersection(MouseLocation, MouseLocation + (MouseDirection * 10000.f), PawnLocation, PlaneNormal);
+
+	EndLocation.Z = PawnLocation.Z;
+
+	FHitResult HitResult;
+	FCollisionQueryParams TraceParams(FName(TEXT("Trace")), false, this);
+	GetWorld()->LineTraceSingleByChannel(HitResult, PawnLocation, EndLocation, ECC_Visibility, TraceParams);
+
+	if (HitResult.IsValidBlockingHit())
+		// Draw a debug line to visualize the trace
+		DrawDebugLine(GetWorld(), PawnLocation, HitResult.Location, FColor::Red, false, 5.0f, 0, 5.0f);
+	else
+		// Draw a debug line to visualize the trace from the pawn to the cursor
+		DrawDebugLine(GetWorld(), PawnLocation, EndLocation, FColor::Red, false, 5.0f, 0, 5.0f);
+
+	GetWorldTimerManager().SetTimer(DashRechargeHandle, this, &AFlySwatterPlayerController::RechargeDashCharges, DashCooldown, true, 0.0f);
+}
+
 
 void AFlySwatterPlayerController::OnSetDestinationReleased()
 {
@@ -102,6 +146,14 @@ void AFlySwatterPlayerController::OnSetDestinationReleased()
 
 	FollowTime = 0.f;
 }
+
+void AFlySwatterPlayerController::RechargeDashCharges()
+{
+	CurrentDashCharges = FMath::Clamp(CurrentDashCharges + 1, 0, MaxDashCharges);
+	if (CurrentDashCharges == MaxDashCharges)
+		GetWorldTimerManager().ClearTimer(DashRechargeHandle);
+}
+
 
 // Triggered every frame when the input is held down
 void AFlySwatterPlayerController::OnTouchTriggered()
