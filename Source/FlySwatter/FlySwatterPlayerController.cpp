@@ -1,16 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "FlySwatterPlayerController.h"
-#include "GameFramework/Pawn.h"
-#include "Blueprint/AIBlueprintHelperLibrary.h"
-#include "NiagaraSystem.h"
-#include "NiagaraFunctionLibrary.h"
-#include "FlySwatterCharacter.h"
-#include "Engine/World.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "FlyLogging.h"
-#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
+#include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 
 AFlySwatterPlayerController::AFlySwatterPlayerController()
 {
@@ -31,7 +28,7 @@ void AFlySwatterPlayerController::BeginPlay()
 
 	MaxDashCharges = 1;
 	CurrentDashCharges = MaxDashCharges;
-	DashCooldown = 1.0f;
+	DashCooldown = 2.0f;
 }
 
 void AFlySwatterPlayerController::SetupInputComponent()
@@ -99,9 +96,7 @@ void AFlySwatterPlayerController::OnSetDestinationTriggered()
 
 void AFlySwatterPlayerController::Dash()
 {
-	if (CurrentDashCharges == 0)return;
-
-	PRINT_MESSAGE(FColor::Orange, "Dashing | Dash Amount %d", CurrentDashCharges);
+	if (CurrentDashCharges <= 0)return;
 
 	if (GetWorldTimerManager().IsTimerActive(DashRechargeHandle))
 		GetWorldTimerManager().ClearTimer(DashRechargeHandle);
@@ -115,7 +110,7 @@ void AFlySwatterPlayerController::Dash()
 
 	FVector PlaneNormal(0.f, 0.f, 1.f);
 
-	FVector EndLocation = FMath::LinePlaneIntersection(MouseLocation, MouseLocation + (MouseDirection * 10000.f), PawnLocation, PlaneNormal);
+	FVector EndLocation = FMath::LinePlaneIntersection(MouseLocation, MouseLocation + (MouseDirection * 1000.f), PawnLocation, PlaneNormal);
 
 	EndLocation.Z = PawnLocation.Z;
 
@@ -123,14 +118,14 @@ void AFlySwatterPlayerController::Dash()
 	FCollisionQueryParams TraceParams(FName(TEXT("Trace")), false, this);
 	GetWorld()->LineTraceSingleByChannel(HitResult, PawnLocation, EndLocation, ECC_Visibility, TraceParams);
 
-	if (HitResult.IsValidBlockingHit())
-		// Draw a debug line to visualize the trace
-		DrawDebugLine(GetWorld(), PawnLocation, HitResult.Location, FColor::Red, false, 5.0f, 0, 5.0f);
-	else
-		// Draw a debug line to visualize the trace from the pawn to the cursor
-		DrawDebugLine(GetWorld(), PawnLocation, EndLocation, FColor::Red, false, 5.0f, 0, 5.0f);
+	//Dash to Actual location
+	auto DashLoc = HitResult.IsValidBlockingHit() ? HitResult.Location : EndLocation;
+	//DrawDebugLine(GetWorld(), PawnLocation, DashLoc, FColor::Red, false, 5.0f, 0, 5.0f);
+	StartDash(DashLoc);
+	CurrentDashCharges--;
+	OnDashChargeUpdated.Broadcast(CurrentDashCharges);
 
-	GetWorldTimerManager().SetTimer(DashRechargeHandle, this, &AFlySwatterPlayerController::RechargeDashCharges, DashCooldown, true, 0.0f);
+	GetWorldTimerManager().SetTimer(DashRechargeHandle, this, &AFlySwatterPlayerController::RechargeDashCharges, DashCooldown, true);
 }
 
 
@@ -149,11 +144,19 @@ void AFlySwatterPlayerController::OnSetDestinationReleased()
 
 void AFlySwatterPlayerController::RechargeDashCharges()
 {
+	PRINT_MESSAGE(FColor::Emerald, "Recharging Dash %d", CurrentDashCharges);
+
 	CurrentDashCharges = FMath::Clamp(CurrentDashCharges + 1, 0, MaxDashCharges);
 	if (CurrentDashCharges == MaxDashCharges)
 		GetWorldTimerManager().ClearTimer(DashRechargeHandle);
+
+	OnDashChargeUpdated.Broadcast(CurrentDashCharges);
 }
 
+float AFlySwatterPlayerController::GetChargePercentage()
+{
+	return GetWorldTimerManager().GetTimerElapsed(DashRechargeHandle) / DashCooldown;
+}
 
 // Triggered every frame when the input is held down
 void AFlySwatterPlayerController::OnTouchTriggered()

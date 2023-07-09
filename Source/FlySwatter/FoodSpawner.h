@@ -21,16 +21,22 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	float GetRandomPoisonTimer();
 	float GetRandomSpawnTimer();
+	void SpawnPoison();
 
 	UPROPERTY()
 	FBox SpawnBox;
 	UPROPERTY()
 	FTimerHandle SpawnTimerHandle;
 	UPROPERTY()
+	FTimerHandle PoisonSpawnTimer;
+	UPROPERTY()
 	FRandomStream RandomStream;
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Food")
 	TSubclassOf<AActor> FoodSpawn;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Food")
+	TSubclassOf<AActor> PoisonSpawn;
 	void SpawnFood();
 };

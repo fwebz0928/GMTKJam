@@ -2,13 +2,15 @@
 
 #include "FlySwatterCharacter.h"
 
+#include "FlyLogging.h"
 #include "Food.h"
-#include "UObject/ConstructorHelpers.h"
 #include "Components/CapsuleComponent.h"
+#include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 #include "Materials/Material.h"
-#include "Engine/World.h"
+#include "UObject/ConstructorHelpers.h"
 
 AFlySwatterCharacter::AFlySwatterCharacter()
 {
@@ -29,12 +31,23 @@ AFlySwatterCharacter::AFlySwatterCharacter()
 	// Activate ticking in order to update the cursor every frame.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+
+	TimeRemaining = 60.0f;
+	MaxFood = 1;
+	MaxHealth = 3;
+	CurrentHealth = MaxHealth;
 }
 
-void AFlySwatterCharacter::Tick(float DeltaSeconds)
+void AFlySwatterCharacter::BeginPlay()
 {
-	Super::Tick(DeltaSeconds);
+	Super::BeginPlay();
+
+	GetWorldTimerManager().SetTimer(CountdownTimer, this, &AFlySwatterCharacter::CountdownFinished, 1.0f, true);
+	OnTimeUpdated.Broadcast(TimeRemaining);
+	OnHealthUpdated.Broadcast(CurrentHealth);
 }
+
+
 void AFlySwatterCharacter::PickupFood(AFood* Food)
 {
 	if (CurrentCarriedFood > MaxFood || Food == nullptr) return;
@@ -50,6 +63,11 @@ void AFlySwatterCharacter::DepositFood()
 	Score += CurrentCarriedFood;
 	OnScoreUpdated.Broadcast(Score);
 
+	UGameplayStatics::PlaySoundAtLocation(GetWorld(), ScoreSound, GetActorLocation(), FRotator::ZeroRotator);
+
+	if (Score % 5 == 0)
+		IncreaseTime(5.0f);
+
 	//Reset
 	CurrentCarriedFood = 0;
 
@@ -58,4 +76,41 @@ void AFlySwatterCharacter::DepositFood()
 		Food->Destroy();
 
 	CarriedFood.Empty();
+}
+
+void AFlySwatterCharacter::DamageHealth()
+{
+	CurrentHealth = FMath::Clamp(CurrentHealth - 1, 0, MaxHealth);
+	UGameplayStatics::PlaySoundAtLocation(GetWorld(), DamageSound, GetActorLocation(), FRotator::ZeroRotator);
+
+	OnHealthUpdated.Broadcast(CurrentHealth);
+	if (CurrentHealth <= 0)
+		DoDeath();
+
+	bCanTakeDamage = false;
+	GetWorldTimerManager().SetTimer(IFrameTimer, this, &AFlySwatterCharacter::DisableIFrame, 1.0f, false);
+}
+
+void AFlySwatterCharacter::DisableIFrame()
+{
+	bCanTakeDamage = true;
+}
+void AFlySwatterCharacter::CountdownFinished()
+{
+	TimeRemaining = FMath::Clamp(TimeRemaining - 1.0f, 0.0f, 10000.0f);
+	OnTimeUpdated.Broadcast(TimeRemaining);
+	if (TimeRemaining <= 0.0f)
+	{
+		//Time Finished
+	}
+}
+void AFlySwatterCharacter::IncreaseTime(const float TimeIncrease)
+{
+	TimeRemaining += TimeIncrease;
+	OnTimeUpdated.Broadcast(TimeRemaining);
+}
+
+bool AFlySwatterCharacter::CanCarryMoreFood() const
+{
+	return CurrentCarriedFood < MaxFood;
 }

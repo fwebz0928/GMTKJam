@@ -17,25 +17,15 @@ AFood::AFood()
 	PickupCollision = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	PickupCollision->SetupAttachment(RootComponent);
 	PickupCollision->OnComponentBeginOverlap.AddDynamic(this, &AFood::OnOverlapBegin);
+	InitialLifeSpan = 5;
 }
-void AFood::BeginPlay()
-{
-	Super::BeginPlay();
 
-	GetWorldTimerManager().SetTimer(DestroyTimer, this, &AFood::DestroyFood, 5.0f, false, 0.0f);
-}
 void AFood::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	AFlySwatterCharacter* PCharacter = Cast<AFlySwatterCharacter>(OtherActor);
-	if (PCharacter == nullptr) return;
+	if (PCharacter == nullptr || PCharacter->CanCarryMoreFood() == false) return;
 
 	this->DisableComponentsSimulatePhysics();
 	this->SetActorEnableCollision(ECollisionEnabled::NoCollision);
 	PCharacter->PickupFood(this);
-}
-
-
-void AFood::DestroyFood()
-{
-	this->Destroy();
 }

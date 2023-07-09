@@ -2,3 +2,9 @@
 
 
 #include "FlyGameInstance.h"
+
+
+void UFlyGameInstance::UpdateHighScore(const int NewScore)
+{
+	BestScore = NewScore > BestScore ? NewScore : BestScore;
+}
